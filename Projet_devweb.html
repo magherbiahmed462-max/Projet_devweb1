@@ -112,5 +112,186 @@
       </div>
     </div>
   </div>
+  <script>
+    // --- Utils & state ---
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    let CELL = 20; // cells per tile (will be updated from UI)
+    let COLS = Math.floor(canvas.width / CELL);
+    let ROWS = Math.floor(canvas.height / CELL);
+
+    const scoreEl = document.getElementById('score');
+    const highEl = document.getElementById('high');
+    const leaderEl = document.getElementById('leaderboard');
+
+    const overlay = document.getElementById('overlay');
+    const moScore = document.getElementById('mo-score');
+
+    let speed = Number(document.getElementById('speed').value); // frames per second logic
+    let sfx = true;
+    let mode = document.getElementById('mode').value;
+
+    document.getElementById('mode').addEventListener('change', e => {
+    mode = e.target.value;});
+
+    // Local storage keys
+    const HS_KEY = 'snake_highscore_v1';
+    const HS_LIST='snake_hs_list_v1';
+
+    function getHigh(){return Number(localStorage.getItem(HS_KEY) || 0)}
+    function setHigh(v){localStorage.setItem(HS_KEY, String(v));}
+    function saveScoreToList(score){
+      const list = JSON.parse(localStorage.getItem(HS_LIST) || '[]');
+      list.push({score, date: new Date().toISOString()});
+      list.sort((a,b)=>b.score-a.score);
+      localStorage.setItem(HS_LIST, JSON.stringify(list.slice(0,10)));
+    }
+
+    function renderLeaderboard(){
+      const list = JSON.parse(localStorage.getItem(HS_LIST) || '[]');
+      leaderEl.innerHTML = '';
+      if(list.length===0){leaderEl.innerHTML='<div class="muted">Aucun score enregistré</div>';return}
+      list.forEach((it, i)=>{
+        const d=new Date(it.date);
+        const div=document.createElement('div');div.className='leader-item';
+        div.innerHTML = `<div>#${i+1} ${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div><div><strong>${it.score}</strong></div>`;
+        leaderEl.appendChild(div);
+      })
+    }
+
+    // --- Game logic ---
+    let snake, dir, apple, frame, running, paused, currentScore, highScore;
+
+    function resetGame(){
+      const DPR = window.devicePixelRatio || 1;
+      CELL = Number(document.getElementById('cells').value);
+      const deviceCellSize = CELL * DPR ;
+      COLS = Math.floor(canvas.width / deviceCellSize);
+      ROWS = Math.floor(canvas.height / deviceCellSize);
+
+      snake = [{x: Math.floor(COLS/2), y: Math.floor(ROWS/2)}];
+      dir = {x:1,y:0};
+      placeApple();
+      frame = 0;
+      running = false;
+      paused = false;
+      currentScore = 0;
+      scoreEl.textContent = currentScore;
+      highScore = getHigh();
+      highEl.textContent = highScore;
+      renderLeaderboard();
+      draw();
+    }
+
+    function placeApple(){
+      apple = null;
+      while(!apple){
+        const a={x:randInt(0,COLS-1), y:randInt(0,ROWS-1)};
+        if(!snake.some(s=>s.x===a.x && s.y===a.y)) apple=a;
+      }
+    }
+
+    function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+
+    function step(){
+      if(paused) return;
+      // move
+      const head = {...snake[0], x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+      // wall wrap or collision? We'll make walls fatal
+      if(mode==="wall")
+      {
+        if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+        return gameOver();
+        }
+        }
+      else{
+      if(head.x<0)
+      {
+        head.x=COLS-1;
+      }
+      if(head.y<0)
+      {
+        head.y=ROWS-1;
+      }
+      if(head.x>=COLS)
+      {
+        head.x=0;
+      }
+      if(head.y>=ROWS)
+      {
+        head.y=0;
+      }}
+      // self-collision
+      if(snake.some(seg => seg.x===head.x && seg.y===head.y)){
+        return gameOver();
+      }
+      snake.unshift(head);
+      // eat apple
+      if(head.x===apple.x && head.y===apple.y){
+        currentScore += 1;
+        scoreEl.textContent = currentScore;
+        if(sfx) beep();
+        placeApple();
+        // increase speed slightly every 5 points
+        if(currentScore % 5 === 0){ speed = Math.min(22, speed + 1); document.getElementById('speed').value = speed; document.getElementById('speed-val').textContent = speed; }
+      } else {
+        snake.pop();
+      }
+    }
+
+    function gameOver(){
+      running = false;
+      paused = true;
+      overlay.style.display = 'flex';
+      moScore.textContent = currentScore;
+      // save
+      if(currentScore > highScore){ setHigh(currentScore); highScore = currentScore; highEl.textContent = highScore; }
+      if(currentScore>0) saveScoreToList(currentScore);
+      renderLeaderboard();
+    }
+
+    // --- Drawing ---
+    function draw(){
+      // clear
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      // background grid subtle
+      ctx.save();
+      for(let x=0;x<COLS;x++){
+        for(let y=0;y<ROWS;y++){
+          ctx.fillStyle = (x+y)%2 ? 'rgba(255,255,255,0.006)' : 'rgba(255,255,255,0.002)';
+          ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+        }
+      }
+      ctx.restore();
+
+      // apple
+      drawCell(apple.x, apple.y, {fill:'#ff6b6b', glow:true});
+
+      // snake
+      for(let i=snake.length-1;i>=0;i--){
+        const s = snake[i];
+        drawCell(s.x, s.y, {fill: i===0 ? '#7c3aed' : '#06b6d4', inset: i%2===0});
+      }
+
+      // small HUD inside canvas
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(6,6,120,30);
+      ctx.fillStyle='#042027';
+      ctx.font='14px system-ui';
+      ctx.fillText('Score: '+currentScore, 14, 26);
+    }
+
+    function drawCell(cx,cy,opts={}){
+      const x = cx*CELL; const y = cy*CELL;
+      ctx.save();
+      if(opts.glow){
+        ctx.shadowColor = 'rgba(255,107,107,0.45)'; ctx.shadowBlur = 14;
+      }
+      ctx.fillStyle = opts.fill || '#06b6d4';
+      // rounded rect
+      const r = Math.max(2, Math.floor(CELL*0.12));
+      roundRect(ctx, x+2, y+2, CELL-4, CELL-4, r, true, false);
+      ctx.restore();
+    }
 </body>
 </html>
