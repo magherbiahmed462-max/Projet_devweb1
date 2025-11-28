@@ -293,5 +293,46 @@
       roundRect(ctx, x+2, y+2, CELL-4, CELL-4, r, true, false);
       ctx.restore();
     }
+    function roundRect(ctx,x,y,w,h,r,fill,stroke){
+      if(typeof r==='number') r={tl:r,tr:r,br:r,bl:r};
+      ctx.beginPath();
+      ctx.moveTo(x+r.tl,y);
+      ctx.lineTo(x+w-r.tr,y);
+      ctx.quadraticCurveTo(x+w,y,x+w,y+r.tr);
+      ctx.lineTo(x+w,y+h-r.br);
+      ctx.quadraticCurveTo(x+w,y+h,x+w-r.br,y+h);
+      ctx.lineTo(x+r.bl,y+h);
+      ctx.quadraticCurveTo(x,y+h,x,y+h-r.bl);
+      ctx.lineTo(x,y+r.tl);
+      ctx.quadraticCurveTo(x,y,x+r.tl,y);
+      ctx.closePath();
+      if(fill) ctx.fill();
+      if(stroke) ctx.stroke();
+    }
+
+    // simple beep
+    function beep(){
+      try{
+        const o=new (window.AudioContext||window.webkitAudioContext)();
+        const s=o.createOscillator(); const g=o.createGain();
+        s.type='sine'; s.frequency.value=520; g.gain.value=0.05;
+        s.connect(g); g.connect(o.destination); s.start(); s.stop(o.currentTime+0.06);
+      }catch(e){/* no audio */}
+    }
+
+    // --- Game loop using timing to match 'speed' value ---
+    let last = 0; // ms
+    function loop(ts){
+      if(!last) last = ts;
+      const delta = ts - last;
+      const msPerStep = 1000 / speed;
+      if(running && delta >= msPerStep){
+        step();
+        draw();
+        last = ts;
+      }
+      requestAnimationFrame(loop);
+    }
+
 </body>
 </html>
