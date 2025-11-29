@@ -334,5 +334,62 @@
       requestAnimationFrame(loop);
     }
 
+    // --- Input ---
+    window.addEventListener('keydown', e=>{
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D'].includes(e.key)){
+        e.preventDefault();
+      }
+      if(e.key==='p' || e.key==='P'){ paused = !paused; if(paused) document.getElementById('btn-pause').textContent='Resume'; else document.getElementById('btn-pause').textContent='Pause';}
+      if(['ArrowUp','w','W'].includes(e.key) && dir.y!==1) dir={x:0,y:-1};
+      if(['ArrowDown','s','S'].includes(e.key) && dir.y!==-1) dir={x:0,y:1};
+      if(['ArrowLeft','a','A'].includes(e.key) && dir.x!==1) dir={x:-1,y:0};
+      if(['ArrowRight','d','D'].includes(e.key) && dir.x!==-1) dir={x:1,y:0};
+    });
+
+    // UI buttons
+    document.getElementById('btn-play').addEventListener('click', ()=>{ if(!running){ running=true; paused=false; } });
+    document.getElementById('btn-pause').addEventListener('click', ()=>{ paused = !paused; document.getElementById('btn-pause').textContent = paused ? 'Resume' : 'Pause'; });
+    document.getElementById('btn-reset').addEventListener('click', ()=>{ localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_LIST); resetGame(); });
+    document.getElementById('mo-restart').addEventListener('click', ()=>{ overlay.style.display='none'; resetGame(); running=true; paused=false; });
+    document.getElementById('mo-close').addEventListener('click', ()=>{ overlay.style.display='none'; });
+
+    document.getElementById('speed').addEventListener('input', e=>{ speed = Number(e.target.value); document.getElementById('speed-val').textContent = speed; });
+    document.getElementById('cells').addEventListener('input', e=>{ document.getElementById('cell-val').textContent = e.target.value; resetGame(); });
+    document.getElementById('btn-eat').addEventListener('click', ()=>{ placeApple(); currentScore +=1; scoreEl.textContent = currentScore; });
+    document.getElementById('btn-sfx').addEventListener('click', ()=>{ sfx = !sfx; alert('SFX '+(sfx?'ON':'OFF')) });
+
+    // allow clicking the canvas to focus for keyboard
+    canvas.addEventListener('click', ()=>canvas.focus());
+
+    // touch controls (basic swipe)
+    let touchStart = null;
+    canvas.addEventListener('touchstart', e=>{ const t=e.touches[0]; touchStart = {x:t.clientX, y:t.clientY}; }, {passive:true});
+    canvas.addEventListener('touchend', e=>{
+      if(!touchStart) return; const t=e.changedTouches[0]; const dx=t.clientX-touchStart.x; const dy=t.clientY-touchStart.y;
+      if(Math.abs(dx)>Math.abs(dy)){
+        if(dx>20 && dir.x!==-1) dir={x:1,y:0};
+        if(dx<-20 && dir.x!==1) dir={x:-1,y:0};
+      } else {
+        if(dy>20 && dir.y!==-1) dir={x:0,y:1};
+        if(dy<-20 && dir.y!==1) dir={x:0,y:-1};
+      }
+      touchStart=null;
+    }, {passive:true});
+
+    // force fit canvas size on high DPI
+    function resizeCanvas(){
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = 720 * ratio;
+      canvas.height = 480 * ratio;
+      canvas.style.width = '720px';
+      canvas.style.height = '480px';
+      ctx.setTransform(ratio,0,0,ratio,0,0);
+      resetGame();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // init
+    resizeCanvas();
+    requestAnimationFrame(loop);
 </body>
 </html>
